@@ -3,11 +3,12 @@ package report
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
-	tlspkg "viperfin/tls"
 	"viperfin/db"
+	tlspkg "viperfin/tls"
 )
 
 const (
@@ -127,8 +128,10 @@ func PrintClientResult(result *tlspkg.CaptureResult, sig *db.Signature, verbose 
 		fmt.Printf("    Notes:    %s\n", sig.Notes)
 	} else {
 		fmt.Printf("  %s[?] Hash not found in local signature database%s\n", dim, reset)
-		fmt.Printf("  %sTip: Check https://ja3er.com/search/%s for community data%s\n",
-			dim, result.ClientJA3.Hash, reset)
+		if result.ClientJA3 != nil {
+			fmt.Printf("  %sTip: Check https://ja3er.com/search/%s for community data%s\n",
+				dim, result.ClientJA3.Hash, reset)
+		}
 	}
 
 	fmt.Println(separator("─", 60))
@@ -203,7 +206,11 @@ func PrintLookupResult(hash string, sig *db.Signature) {
 
 // PrintJSON outputs a result as pretty-printed JSON.
 func PrintJSON(v interface{}) {
-	enc, _ := json.MarshalIndent(v, "", "  ")
+	enc, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error serializing output: %v\n", err)
+		os.Exit(1)
+	}
 	fmt.Println(string(enc))
 }
 

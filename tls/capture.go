@@ -28,7 +28,8 @@ type CaptureResult struct {
 //
 // Strategy: We use a custom net.Conn wrapper that captures the first
 // bytes written (which will be our ClientHello) before passing them through.
-func ConnectAndCapture(host string, port int, verbose bool) (*CaptureResult, error) {
+// If insecure is true, certificate verification is skipped.
+func ConnectAndCapture(host string, port int, verbose, insecure bool) (*CaptureResult, error) {
 	target := fmt.Sprintf("%s:%d", host, port)
 
 	if verbose {
@@ -53,7 +54,7 @@ func ConnectAndCapture(host string, port int, verbose bool) (*CaptureResult, err
 	// Step 2: Perform TLS handshake through the capture wrapper
 	tlsConfig := &tls.Config{
 		ServerName:         host,
-		InsecureSkipVerify: false, // Verify cert normally
+		InsecureSkipVerify: insecure, //nolint:gosec // user-controlled flag
 		MinVersion:         tls.VersionTLS10,
 		// Include a wide range of cipher suites so our JA3 is representative
 		CipherSuites: []uint16{

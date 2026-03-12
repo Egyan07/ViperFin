@@ -19,7 +19,6 @@ func RunClient(args []string) {
 	jsonOut := fs.Bool("json", false, "Output as JSON")
 	verbose := fs.Bool("verbose", false, "Show cipher suites, extensions, and curves in detail")
 	insecure := fs.Bool("insecure", false, "Skip TLS certificate verification")
-	_ = insecure // used in future extension
 
 	fs.Usage = func() {
 		fmt.Println("Usage: viperfin client <host:port> [flags]")
@@ -39,7 +38,7 @@ func RunClient(args []string) {
 	}
 
 	target := fs.Arg(0)
-	host, portStr, err := parseTarget(target)
+	host, port, err := parseTarget(target)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -48,7 +47,7 @@ func RunClient(args []string) {
 	fmt.Printf("[*] Target:  %s\n", target)
 	fmt.Printf("[*] Database: %d known signatures loaded\n", db.Count())
 
-	result, err := tlspkg.ConnectAndCapture(host, portStr, *verbose)
+	result, err := tlspkg.ConnectAndCapture(host, port, *verbose, *insecure)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

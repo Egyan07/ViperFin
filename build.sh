@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build script for viperfin
-# Produces binaries for Linux (Kali) and Windows
+# Produces binaries for Linux, Windows, and macOS (amd64 + arm64)
 
 set -e
 
@@ -11,15 +11,26 @@ BUILD_DIR="./build"
 echo "Building viperfin v${VERSION}..."
 mkdir -p "$BUILD_DIR"
 
-# Linux (Kali native)
-echo "[1/2] Building Linux amd64..."
-GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${VERSION}" -o "${BUILD_DIR}/${BINARY}-linux-amd64" .
-echo "      -> ${BUILD_DIR}/${BINARY}-linux-amd64"
+targets=(
+  "linux   amd64 ${BINARY}-linux-amd64"
+  "linux   arm64 ${BINARY}-linux-arm64"
+  "windows amd64 ${BINARY}-windows-amd64.exe"
+  "darwin  amd64 ${BINARY}-darwin-amd64"
+  "darwin  arm64 ${BINARY}-darwin-arm64"
+)
 
-# Windows
-echo "[2/2] Building Windows amd64..."
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${VERSION}" -o "${BUILD_DIR}/${BINARY}-windows-amd64.exe" .
-echo "      -> ${BUILD_DIR}/${BINARY}-windows-amd64.exe"
+count=1
+total=${#targets[@]}
+
+for entry in "${targets[@]}"; do
+  read -r os arch outname <<< "$entry"
+  echo "[${count}/${total}] Building ${os}/${arch}..."
+  GOOS="$os" GOARCH="$arch" go build \
+    -ldflags="-s -w -X main.Version=${VERSION}" \
+    -o "${BUILD_DIR}/${outname}" .
+  echo "      -> ${BUILD_DIR}/${outname}"
+  (( count++ ))
+done
 
 echo ""
 echo "Done. Binaries in ${BUILD_DIR}/"

@@ -97,6 +97,8 @@ func RunServer(args []string) {
 				switch sig.ThreatLevel {
 				case db.ThreatBenign:
 					stats.benign++
+				case db.ThreatInfo:
+					stats.unknown++ // info-level treated as unknown in summary
 				case db.ThreatSuspicious:
 					stats.suspicious++
 				case db.ThreatMalicious:

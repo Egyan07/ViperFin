@@ -8,7 +8,7 @@ import (
 )
 
 //go:embed ja3_signatures.json
-var signaturesJSON []byte
+var JA3Signatures []byte
 
 // Signature represents a known JA3 fingerprint entry.
 type Signature struct {
@@ -35,7 +35,7 @@ var db map[string]*Signature
 
 func init() {
 	var parsed sigDB
-	if err := json.Unmarshal(signaturesJSON, &parsed); err != nil {
+	if err := json.Unmarshal(JA3Signatures, &parsed); err != nil {
 		panic(fmt.Sprintf("failed to load JA3 signature database: %v", err))
 	}
 	db = make(map[string]*Signature, len(parsed.Signatures))

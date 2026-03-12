@@ -19,7 +19,7 @@ const banner = `
 `
 
 func main() {
-	fmt.Println(banner)
+	fmt.Print(banner)
 
 	if len(os.Args) < 2 {
 		printUsage()
