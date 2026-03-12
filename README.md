@@ -89,6 +89,15 @@ Or just:
 ```bash
 go build -o viperfin .
 ```
+To create viperfin.exe run:
+
+GOOS=windows GOARCH=amd64 go build -o viperfin.exe .
+
+Copy the exe file directly between Kali and Windows if you're using Windows Subsystem for Linux:
+
+cp viperfin.exe /mnt/c/Users/YourName/Desktop/
+
+Then it instantly appears on Windows. If you are using Virtual box then use python server to transfer your exe to the Windows folder
 
 No external dependencies — uses only Go stdlib.
 
