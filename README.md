@@ -1,343 +1,404 @@
-# ViperFin — TLS Fingerprinting Tool
+# 🐍 ViperFin
 
-> **Coded by Egyan**
+### TLS Fingerprinting & JA3 Analysis Tool
 
-ViperFin is a JA3/JA3S TLS fingerprinting tool written in Go. Identifies what
-software is making TLS connections by analyzing the raw ClientHello message —
-no ML, no APIs, pure protocol analysis.
+![GitHub stars](https://img.shields.io/github/stars/Egyan07/ViperFin?style=social)
+![GitHub forks](https://img.shields.io/github/forks/Egyan07/ViperFin?style=social)
+![GitHub issues](https://img.shields.io/github/issues/Egyan07/ViperFin)
+![GitHub last commit](https://img.shields.io/github/last-commit/Egyan07/ViperFin)
+![License](https://img.shields.io/github/license/Egyan07/ViperFin)
 
-Used defensively by threat intel platforms (Salesforce, Cloudflare, Fastly) to
-detect malware C2 channels. Used offensively to identify what TLS stack a server
-expects from clients.
+**Coded by Egyan**
 
----
+ViperFin is a **JA3 / JA3S TLS fingerprinting tool written in Go**.
 
-## Changelog
+It identifies what software is making TLS connections by analyzing the **raw ClientHello handshake message** — no machine learning, no external APIs, just **pure TLS protocol analysis**.
 
-### v1.1.0 (2026-03-13)
+TLS fingerprinting is widely used by security platforms such as **Cloudflare, Salesforce, and Fastly** to detect malware command-and-control channels and identify suspicious clients.
 
-**Bug fixes (compilation)**
-- Moved `db/lookup.go` to `cmd/lookup.go` — fixed circular self-import that prevented compilation
-- Fixed undefined `signaturesJSON` variable → changed to `JA3Signatures` (the actual embed var)
-- Created missing `tls/server.go` — `cmd/server.go` called `ServerMode()` and `ClientConnection` which didn't exist
-
-**Bug fixes (runtime)**
-- Fixed nil pointer panic when `result.ClientJA3` was nil in `report/output.go`
-- Fixed `json.MarshalIndent` error being silently dropped — now prints to stderr and exits
-- Fixed `--insecure` flag declared but dead (`_ = insecure`) — now wired through to `ConnectAndCapture`
-- Fixed `InsecureSkipVerify` hardcoded to `false` — now uses the `insecure` bool parameter
-- Fixed `portStr` variable typed as int — renamed to `port`
-- Fixed `ThreatInfo` not handled in stats switch — added `case db.ThreatInfo`
-- Fixed `fmt.Println(banner)` trailing newline — changed to `fmt.Print`
-- Fixed missing `os` import in `report/output.go`
-
-**Added**
-- `tls/ja3_test.go` — 5 unit tests: hash format, GREASE filtering, JA3S, determinism, version names
-- `tls/parser_test.go` — 7 unit tests: basic parse, truncated data, wrong types, hex round-trip
-- `db/signatures_test.go` — 7 unit tests: count, lookup, case-insensitivity, unknown hashes, colors, icons
-- `.github/workflows/ci.yml` — CI pipeline: `go vet` + tests with `-race` + cross-compile for 5 platforms on every push/PR
-- `build.sh` — cross-compiles for Linux amd64/arm64, Windows amd64, macOS amd64/arm64
-
-### v1.0.0 (2026-03-11)
-Initial release.
-
-## How JA3 Works
-
-Every TLS connection starts with a **ClientHello** message. Before any encryption
-happens, the client announces:
-
-- Which **TLS version** it supports
-- Which **cipher suites** it can use (ordered by preference)
-- Which **extensions** it wants to use
-- Which **elliptic curves** it supports
-- Which **EC point formats** it supports
-
-Different clients produce different combinations. Chrome, Firefox, curl, Python
-requests, and Cobalt Strike all produce distinct ClientHello messages — even when
-connecting to the same server.
-
-**JA3** takes these five fields, joins them as a comma-separated string, and MD5
-hashes the result:
-
-```
-SSLVersion,Ciphers,Extensions,EllipticCurves,EllipticCurvePointFormats
-769,47-53-5-10-49161,0-10-11,23-24,0
-→ MD5 → a0e9f5d64349fb13191bc781f81f42e1
-```
-
-GREASE values (RFC 8701 — random values browsers insert to prevent ossification)
-are excluded before hashing.
-
-**JA3S** is the server-side equivalent — fingerprints the ServerHello response.
-The combination of JA3 + JA3S identifies not just what client is connecting but
-also what server infrastructure is being used (useful for C2 detection).
+ViperFin can also be used by red teams to understand **what TLS fingerprints their tools generate** when connecting to servers.
 
 ---
 
-## Install
+# 🧰 Technology
 
-Requirements: Go 1.21+
+| Component      | Description                      |
+| -------------- | -------------------------------- |
+| Language       | Go (stdlib only)                 |
+| Protocol       | TLS handshake analysis           |
+| Fingerprinting | JA3 and JA3S                     |
+| Database       | Embedded JSON signature database |
+| Output         | Terminal or JSON                 |
+
+No external dependencies.
+
+---
+
+# ✨ Features
+
+| Feature             | Description                                          |
+| ------------------- | ---------------------------------------------------- |
+| JA3 Fingerprinting  | Identify TLS clients from ClientHello                |
+| JA3S Fingerprinting | Identify server infrastructure                       |
+| Signature Database  | Detect known tools and malware                       |
+| TLS Inspection      | Shows TLS version, cipher suite, certificate details |
+| Threat Intelligence | Matches fingerprints against known malicious tools   |
+| JSON Output         | Pipe-friendly output for scripting                   |
+| Server Mode         | Fingerprint incoming clients                         |
+| Lookup Mode         | Query local fingerprint database                     |
+| Cross Compilation   | Build for Linux, Windows, macOS                      |
+| CI Pipeline         | Automated tests + race detection                     |
+
+---
+
+# 🚀 Installation
+
+Requirements:
+
+```
+Go 1.21+
+```
+
+Clone the repository:
 
 ```bash
 git clone <repo>
 cd viperfin
+```
+
+Build using the included script:
+
+```bash
 chmod +x build.sh
 ./build.sh
 ```
 
-Or just:
+Or build manually:
+
 ```bash
 go build -o viperfin .
 ```
-To create viperfin.exe run:
 
+Build Windows executable:
+
+```bash
 GOOS=windows GOARCH=amd64 go build -o viperfin.exe .
+```
 
-Copy the exe file directly between Kali and Windows if you're using Windows Subsystem for Linux:
-
-cp viperfin.exe /mnt/c/Users/YourName/Desktop/
-
-Then it instantly appears on Windows. If you are using Virtual box then use python server to transfer your exe to the Windows folder
-
-No external dependencies — uses only Go stdlib.
+The binary can then be copied between environments such as **Kali Linux → Windows**.
 
 ---
 
+# ⚡ Windows Quick Start
 
----
+After building `viperfin.exe` and transferring it to Windows:
 
-## Windows Quick Start (after cross-compiling from Kali)
+Open Command Prompt:
 
-Once you have `viperfin.exe` built on Kali and transferred to Windows:
+```
+Win + R → type cmd
+```
 
-### Step 1 — Open Command Prompt
-Press `Win + R`, type `cmd`, press Enter.
+Navigate to the folder:
 
-### Step 2 — Navigate to the folder
 ```cmd
 cd "C:\My Projects\Projects\ViperFin"
 ```
 
-### Step 3 — Run it against any website
+Run against any website:
+
 ```cmd
 viperfin.exe client google.com:443
 ```
 
-Just replace `google.com` with any website you want to check:
+Examples:
+
 ```cmd
 viperfin.exe client facebook.com:443
 viperfin.exe client github.com:443
-viperfin.exe client yourbank.com:443
+viperfin.exe client example.com:443
 ```
 
-The `:443` at the end is always the same for normal websites — it means "use the secure HTTPS connection". You don't need to change it.
+Port `443` indicates a **standard HTTPS TLS connection**.
 
 ---
 
-### What the output tells you
+# 🔍 Understanding the Output
 
-| Section | What it means |
-|---|---|
-| **TLS Version** | The security protocol the website is using — TLS 1.3 is the latest and most secure |
-| **Cert Subject** | Which domain the security certificate belongs to |
-| **Cert Issuer** | Who issued the security certificate (e.g. Google, DigiCert) |
-| **Cert Expiry** | When the certificate expires — green means fine, red means expiring soon |
-| **JA3 Hash** | A unique fingerprint of *your* connection — like a digital ID for how your computer connects |
-| **JA3S Hash** | A unique fingerprint of the *server's* response |
-| **Threat Intelligence** | Checks if either fingerprint matches known malware or hacking tools |
+| Section             | Meaning                                   |
+| ------------------- | ----------------------------------------- |
+| TLS Version         | Protocol version used by the server       |
+| Cert Subject        | Domain the certificate belongs to         |
+| Cert Issuer         | Certificate authority that issued it      |
+| Cert Expiry         | When the certificate expires              |
+| JA3 Hash            | Fingerprint of the client TLS stack       |
+| JA3S Hash           | Fingerprint of the server TLS stack       |
+| Threat Intelligence | Database match for known tools or malware |
 
-### What to look for
+Indicators:
 
-- ✅ `TLS 1.3` — good, modern and secure
-- ✅ Cert Expiry shown in green — certificate is valid
-- ⚠️ Cert Expiry shown in red — certificate is expiring soon or expired
-- 🚨 Threat Intelligence shows a match — the connection fingerprint matches known malware or a hacking tool
+| Indicator                    | Meaning                                |
+| ---------------------------- | -------------------------------------- |
+| ✅ TLS 1.3                    | Modern secure configuration            |
+| ⚠️ Certificate near expiry   | Certificate about to expire            |
+| 🚨 Threat intelligence match | Fingerprint matches known malware/tool |
 
-## Usage
+---
 
-### Client Mode
-Connect to a TLS server and fingerprint yourself:
+# 🧠 How JA3 Works
+
+Every TLS connection begins with a **ClientHello** message.
+
+Before encryption begins, the client announces:
+
+* supported TLS version
+* supported cipher suites
+* supported extensions
+* supported elliptic curves
+* EC point formats
+
+Different software produces **distinct combinations**.
+
+Examples:
+
+* Chrome
+* Firefox
+* Python requests
+* curl
+* Cobalt Strike
+
+JA3 concatenates these fields:
+
+```
+SSLVersion,Ciphers,Extensions,EllipticCurves,EllipticCurvePointFormats
+769,47-53-5-10-49161,0-10-11,23-24,0
+```
+
+The resulting string is hashed using **MD5** to create the JA3 fingerprint.
+
+Example:
+
+```
+a0e9f5d64349fb13191bc781f81f42e1
+```
+
+---
+
+# 🧪 GREASE Filtering
+
+Modern browsers insert random values called **GREASE values** to prevent protocol ossification.
+
+Defined in **RFC 8701**.
+
+Examples:
+
+```
+0x0A0A
+0x1A1A
+...
+0xFAFA
+```
+
+Because GREASE values change per connection, JA3 filters them out so fingerprints remain deterministic.
+
+---
+
+# ⚡ Usage
+
+## Client Mode
+
+Connect to a TLS server and fingerprint your connection.
 
 ```bash
-# Basic
 ./viperfin client google.com:443
+```
 
-# Verbose — shows all cipher suites, extensions, curves
+Verbose mode:
+
+```bash
 ./viperfin client example.com:443 --verbose
+```
 
-# JSON output (pipe-friendly)
+JSON output:
+
+```bash
 ./viperfin client 10.0.0.1:8443 --json
+```
 
-# Non-standard port, skip cert verify
+Skip certificate verification:
+
+```bash
 ./viperfin client internal.corp:8443 --insecure
 ```
 
-**What it shows:**
-- Your JA3 hash (what you look like to the server)
-- The server's JA3S hash
-- Negotiated TLS version and cipher suite
-- Server certificate details + expiry countdown
-- Threat intel match from local database
+Shows:
 
-### Server Mode
-Listen for incoming TLS connections and fingerprint every client:
+* JA3 fingerprint
+* JA3S fingerprint
+* TLS version and cipher suite
+* certificate details
+* threat intelligence matches
+
+---
+
+## Server Mode
+
+Listen for TLS connections and fingerprint every client.
+
+Start server:
 
 ```bash
-# Start on default port 4443
 ./viperfin server
+```
 
-# Custom port
+Custom port:
+
+```bash
 ./viperfin server --port 8443
+```
 
-# JSON output (for piping to a log file)
+JSON output:
+
+```bash
 ./viperfin server --port 4443 --json >> fingerprints.jsonl
 ```
 
-Then connect from another terminal to test:
+Example clients:
+
 ```bash
-curl -k https://localhost:4443          # will show curl's JA3
-python3 -c "import urllib.request; urllib.request.urlopen('https://localhost:4443')"
+curl -k https://localhost:4443
 openssl s_client -connect localhost:4443
 ```
 
-**Use case:** Set this up on a server you control. Any client that connects
-gets fingerprinted. Useful for:
-- Red team: Understand what your tools look like to defenders
-- Blue team: Identify unexpected clients on your network
-- Research: Collect JA3 hashes from production traffic
+Use cases:
 
-### Lookup Mode
-Query the local signature database:
+* security research
+* red team infrastructure
+* TLS fingerprint collection
+* network monitoring
+
+---
+
+## Lookup Mode
+
+Query the local signature database.
+
+Lookup hash:
 
 ```bash
-# Look up a specific hash
 ./viperfin lookup 6bea65232d17d4884c427918d6c3abf0
+```
 
-# List all signatures
+List all signatures:
+
+```bash
 ./viperfin lookup --list
+```
 
-# Filter by threat level
+Filter by threat level:
+
+```bash
 ./viperfin lookup --list --threat malicious
-./viperfin lookup --list --threat suspicious
 ```
 
 ---
 
-## Signature Database
+# 📚 Signature Database
 
-The local database (`db/ja3_signatures.json`) contains known JA3 hashes for:
+The embedded database contains fingerprints for:
 
-| Category | Examples |
-|---|---|
-| Browsers | Chrome, Firefox, Safari, Tor Browser |
-| Tools | curl, wget, Python requests, OpenSSL, Go net/http |
-| Pentest | Metasploit, Nmap |
-| Malware C2 | Cobalt Strike, Sliver, Emotet, TrickBot, Dridex, QakBot, Brute Ratel |
-| Scanners | Masscan, Shodan |
+| Category      | Examples                        |
+| ------------- | ------------------------------- |
+| Browsers      | Chrome, Firefox, Safari         |
+| Tools         | curl, wget, Python requests     |
+| Pentest Tools | Metasploit, Nmap                |
+| Malware C2    | Cobalt Strike, Emotet, TrickBot |
+| Scanners      | Masscan, Shodan                 |
 
-### Extending the database
+File location:
 
-Edit `db/ja3_signatures.json` and add entries:
+```
+db/ja3_signatures.json
+```
+
+Example entry:
 
 ```json
 {
   "hash": "your_md5_hash_here",
   "label": "Descriptive name",
-  "category": "browser|tool|scanner|pentest_tool|malware_c2",
-  "threat_level": "benign|info|suspicious|malicious",
+  "category": "browser",
+  "threat_level": "benign",
   "notes": "Context about this fingerprint"
 }
 ```
 
-Community databases:
-- https://ja3er.com — crowdsourced JA3 database
-- https://github.com/salesforce/ja3 — original JA3 implementation + database
+Community resources:
+
+* https://ja3er.com
+* https://github.com/salesforce/ja3
 
 ---
 
-## TLS Internals Reference
-
-### ClientHello Structure (what we parse)
-
-```
-TLS Record Header (5 bytes)
-  ├── Content Type: 0x16 (Handshake)
-  ├── Legacy Version: 0x0303 (TLS 1.2, even for TLS 1.3)
-  └── Length: 2 bytes
-
-Handshake Header (4 bytes)
-  ├── Type: 0x01 (ClientHello)
-  └── Length: 3 bytes
-
-ClientHello Body
-  ├── Client Version: 2 bytes  ← JA3 field 1
-  ├── Random: 32 bytes
-  ├── Session ID: variable
-  ├── Cipher Suites: variable  ← JA3 field 2
-  ├── Compression Methods: variable
-  └── Extensions: variable
-        ├── server_name (0)    → extracts SNI hostname
-        ├── supported_groups (10) ← JA3 field 4 (elliptic curves)
-        ├── ec_point_formats (11) ← JA3 field 5
-        ├── signature_algorithms (13)
-        ├── supported_versions (43) → actual TLS version for TLS 1.3
-        └── ... (all type IDs form JA3 field 3)
-```
-
-### Why GREASE is Excluded
-
-RFC 8701 defines a set of "GREASE" values (0x0A0A, 0x1A1A, ..., 0xFAFA) that
-browsers randomly insert into cipher suite lists and extension lists. The purpose
-is to ensure TLS implementations don't break when they see unknown values.
-
-Since GREASE values change per connection (by design), they would make JA3
-fingerprints non-deterministic for browsers. JA3 filters them out so the same
-browser produces the same hash across connections.
-
----
-
-## Project Structure
+# 🏗 Project Structure
 
 ```
 viperfin/
-├── main.go              # CLI entry point
-├── go.mod               # Module definition (stdlib only)
-├── build.sh             # Cross-compile script
+├── main.go
+├── go.mod
+├── build.sh
 ├── cmd/
-│   ├── client.go        # `viperfin client` subcommand
-│   ├── server.go        # `viperfin server` subcommand
-│   └── lookup.go        # `viperfin lookup` subcommand
+│   ├── client.go
+│   ├── server.go
+│   └── lookup.go
 ├── tls/
-│   ├── ja3.go           # JA3/JA3S hash computation + cipher/extension names
-│   ├── parser.go        # Raw ClientHello/ServerHello byte parser
-│   ├── capture.go       # Client mode — captureConn wrapper
-│   └── server.go        # Server mode — listener + self-signed cert generation
+│   ├── ja3.go
+│   ├── parser.go
+│   ├── capture.go
+│   └── server.go
 ├── db/
-│   ├── signatures.go    # Database loader (embedded JSON, Go embed)
-│   └── ja3_signatures.json  # Known JA3 hashes
+│   ├── signatures.go
+│   └── ja3_signatures.json
 └── report/
-    └── output.go        # Terminal formatting + JSON output
+    └── output.go
 ```
 
 ---
 
-## Extending This Tool
+# 🛣 Roadmap
 
-Ideas for what to build on top:
-- **PCAP mode:** Parse `.pcap` files offline using `gopacket` — extract JA3 from
-  captured traffic without needing a live connection
-- **Continuous monitor:** Run server mode + pipe JSON to a file, build a
-  simple dashboard that reads the JSONL file
-- **JA3 database sync:** Pull latest hashes from ja3er.com API and merge into
-  local database
-- **Proxy mode:** MITM proxy that fingerprints every HTTPS connection passing
-  through it — useful for analyzing app traffic
+Future improvements:
+
+* PCAP parsing mode
+* continuous fingerprint monitoring
+* JA3 database auto-sync
+* TLS proxy fingerprint collector
+* dashboard for fingerprint analytics
 
 ---
 
-## References
+# 📚 References
 
-- Original JA3 paper: https://engineering.salesforce.com/tls-fingerprinting-with-ja3-and-ja3s-247362855967
-- RFC 8701 (GREASE): https://www.rfc-editor.org/rfc/rfc8701
-- TLS 1.3 spec: https://www.rfc-editor.org/rfc/rfc8446
-- Wireshark TLS dissector (for comparison): https://wiki.wireshark.org/TLS
+Salesforce JA3 paper
+https://engineering.salesforce.com/tls-fingerprinting-with-ja3-and-ja3s-247362855967
+
+RFC 8701 — GREASE
+https://www.rfc-editor.org/rfc/rfc8701
+
+TLS 1.3 specification
+https://www.rfc-editor.org/rfc/rfc8446
+
+Wireshark TLS dissector
+https://wiki.wireshark.org/TLS
+
+---
+
+# 👨‍💻 Author
+
+**Egyan07**
+
+---
+
+# 🐍 ViperFin
+
+**Protocol-Level TLS Fingerprinting**
