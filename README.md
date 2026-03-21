@@ -7,6 +7,11 @@
 ![GitHub issues](https://img.shields.io/github/issues/Egyan07/ViperFin)
 ![GitHub last commit](https://img.shields.io/github/last-commit/Egyan07/ViperFin)
 ![License](https://img.shields.io/github/license/Egyan07/ViperFin)
+![CI](https://github.com/Egyan07/ViperFin/actions/workflows/ci.yml/badge.svg)
+
+![Go](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
 
 **Coded by Egyan**
 
@@ -377,8 +382,33 @@ Future improvements:
 
 ---
 
+=======
+# 📋 Changelog
+
+**v1.1.1** *(current — security & reliability fixes)*
+
+- **TLS 1.0 → 1.2 on server listener** — raised `MinVersion` from TLS 1.0 to TLS 1.2. Client mode retains TLS 1.0 intentionally to fingerprint legacy servers.
+- **Silent capture truncation fixed** — buffer raised from 4 KB to 16 KB (full TLS record maximum). `ReadTruncated()` added. `[!] Warning` printed when limit is hit — previously a truncated ClientHello would produce a wrong JA3 hash silently.
+- **`--insecure` now prints a visible warning** — `[!] Warning: TLS certificate verification is DISABLED` printed before connecting.
+- **`SortedCurveNames` dead code removed** — sorting curves alphabetically loses ClientHello field order which is semantically meaningful for fingerprinting.
+- **`.gitignore` hardened** — removed Kali dev environment metadata. Added `*.password`, `*.secret`, `*.key`, `*.pem`, `*.pfx`.
+
+**v1.1.0**
+
+- Fixed `signaturesJSON` → `JA3Signatures` undefined variable
+- Fixed nil pointer panic when `result.ClientJA3` was nil
+- Fixed `json.MarshalIndent` error silently dropped — now prints to stderr and exits
+- Fixed `--insecure` flag declared but dead — now wired through to `ConnectAndCapture`
+- Fixed `InsecureSkipVerify` hardcoded to `false` — now uses the `insecure` parameter
+- Fixed `portStr` typed as int — renamed to `port`
+- Fixed `ThreatInfo` not handled in stats switch
+- Added CI pipeline: `go vet` + tests with `-race` + cross-compile for 5 platforms
+
+---
+
 # 📚 References
 
+>>>>>>> 306d2bd (Update README - add badges and changelog)
 Salesforce JA3 paper
 https://engineering.salesforce.com/tls-fingerprinting-with-ja3-and-ja3s-247362855967
 
