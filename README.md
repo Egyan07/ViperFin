@@ -1,434 +1,128 @@
-# 🐍 ViperFin
+<p align="center">
+  <img src="https://img.shields.io/badge/go-1.21%2B-00ADD8?logo=go&logoColor=white" alt="Go 1.21+">
+  <img src="https://img.shields.io/badge/dependencies-stdlib%20only-brightgreen" alt="No dependencies">
+  <a href="https://github.com/Egyan07/ViperFin/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Egyan07/ViperFin/ci.yml?label=CI&logo=githubactions&logoColor=white" alt="CI"></a>
+</p>
 
-### TLS Fingerprinting & JA3 Analysis Tool
+# ViperFin
 
-![GitHub stars](https://img.shields.io/github/stars/Egyan07/ViperFin?style=social)
-![GitHub forks](https://img.shields.io/github/forks/Egyan07/ViperFin?style=social)
-![GitHub issues](https://img.shields.io/github/issues/Egyan07/ViperFin)
-![GitHub last commit](https://img.shields.io/github/last-commit/Egyan07/ViperFin)
-![License](https://img.shields.io/github/license/Egyan07/ViperFin)
-![CI](https://github.com/Egyan07/ViperFin/actions/workflows/ci.yml/badge.svg)
+JA3 and JA3S TLS fingerprinting in Go, standard library only.
 
-![Go](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)
-![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)
-![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
+## What it does
 
-**Coded by Egyan**
+Every TLS connection opens with a ClientHello, sent in clear, before any encryption exists. That message lists the TLS versions, cipher suites, extensions, curves and point formats the client supports. Different software produces different combinations, and the combination is stable enough to tell Chrome from curl from a Cobalt Strike beacon.
 
-ViperFin is a **JA3 / JA3S TLS fingerprinting tool written in Go**.
+JA3 turns that combination into a string and hashes it with MD5. ViperFin captures the handshake, computes the hash, and matches it against a local signature database. No external API, no machine learning, no agent.
 
-It identifies what software is making TLS connections by analyzing the **raw ClientHello handshake message** — no machine learning, no external APIs, just **pure TLS protocol analysis**.
+JA3S does the same job for the server side, which is how you tell nginx from an appliance you did not know was there.
 
-TLS fingerprinting is widely used by security platforms such as **Cloudflare, Salesforce, and Fastly** to detect malware command-and-control channels and identify suspicious clients.
+## Modes
 
-ViperFin can also be used by red teams to understand **what TLS fingerprints their tools generate** when connecting to servers.
-
----
-
-# 🧰 Technology
-
-| Component      | Description                      |
-| -------------- | -------------------------------- |
-| Language       | Go (stdlib only)                 |
-| Protocol       | TLS handshake analysis           |
-| Fingerprinting | JA3 and JA3S                     |
-| Database       | Embedded JSON signature database |
-| Output         | Terminal or JSON                 |
-
-No external dependencies.
-
----
-
-# ✨ Features
-
-| Feature             | Description                                          |
-| ------------------- | ---------------------------------------------------- |
-| JA3 Fingerprinting  | Identify TLS clients from ClientHello                |
-| JA3S Fingerprinting | Identify server infrastructure                       |
-| Signature Database  | Detect known tools and malware                       |
-| TLS Inspection      | Shows TLS version, cipher suite, certificate details |
-| Threat Intelligence | Matches fingerprints against known malicious tools   |
-| JSON Output         | Pipe-friendly output for scripting                   |
-| Server Mode         | Fingerprint incoming clients                         |
-| Lookup Mode         | Query local fingerprint database                     |
-| Cross Compilation   | Build for Linux, Windows, macOS                      |
-| CI Pipeline         | Automated tests + race detection                     |
-
----
-
-# 🚀 Installation
-
-Requirements:
-
-```
-Go 1.21+
-```
-
-Clone the repository:
+**client** connects to a target, captures your own ClientHello, and reports what the connection looks like from the outside.
 
 ```bash
-git clone <repo>
-cd viperfin
+./viperfin client google.com:443
+./viperfin client example.com:443 --verbose
+./viperfin client 10.0.0.1:8443 --insecure --json
 ```
 
-Build using the included script:
+**server** listens, generates a self-signed certificate, and fingerprints every client that connects. Useful for seeing what a tool actually sends.
 
 ```bash
-chmod +x build.sh
-./build.sh
+./viperfin server --port 4443
+./viperfin server --port 8443 --json >> fingerprints.jsonl
 ```
-
-Or build manually:
 
 ```bash
-go build -o viperfin .
+curl -k https://localhost:4443
 ```
 
-Build Windows executable:
+**lookup** queries the signature database directly.
 
 ```bash
-GOOS=windows GOARCH=amd64 go build -o viperfin.exe .
+./viperfin lookup 6bea65232d17d4884c427918d6c3abf0
+./viperfin lookup --list
+./viperfin lookup --list --threat malicious
 ```
 
-The binary can then be copied between environments such as **Kali Linux → Windows**.
+## Flags
 
----
+| Mode | Flag | Effect |
+|---|---|---|
+| client | `--json` | One JSON object instead of the text report |
+| client | `--verbose` | Prints cipher suites, extensions and curves in full |
+| client | `--insecure` | Skips certificate verification, and says so in the output |
+| server | `--port` | Listen port, default 4443 |
+| server | `--json` | One JSON object per connection, pipe friendly |
+| server | `--verbose` | Full cipher suite details per connection |
 
-# ⚡ Windows Quick Start
+`--insecure` prints a warning every time it is used. A certificate mismatch is itself worth seeing, and silencing it without a trace is how a MITM goes unnoticed in a lab.
 
-After building `viperfin.exe` and transferring it to Windows:
+## Signature database
 
-Open Command Prompt:
+22 fingerprints embedded in the binary, each with a label, a category and a threat level.
 
-```
-Win + R → type cmd
-```
+| Category | Examples |
+|---|---|
+| Browsers | Chrome 107+, Firefox 105+, Safari 16, Tor Browser |
+| Tools | curl, wget, Python requests, Go net/http, OpenSSL s_client, Java HttpsURLConnection |
+| Penetration testing | Metasploit, Nmap SSL scan |
+| Scanners | Masscan, Shodan crawler |
+| Malware C2 | Cobalt Strike (two variants), Sliver, Brute Ratel C4, Emotet, TrickBot, Dridex, QakBot |
 
-Navigate to the folder:
+The list is small on purpose. A JA3 hash is only useful if the label is right, and a wrong label is worse than no label.
 
-```cmd
-cd "C:\My Projects\Projects\ViperFin"
-```
+## How the hash is built
 
-Run against any website:
-
-```cmd
-viperfin.exe client google.com:443
-```
-
-Examples:
-
-```cmd
-viperfin.exe client facebook.com:443
-viperfin.exe client github.com:443
-viperfin.exe client example.com:443
-```
-
-Port `443` indicates a **standard HTTPS TLS connection**.
-
----
-
-# 🔍 Understanding the Output
-
-| Section             | Meaning                                   |
-| ------------------- | ----------------------------------------- |
-| TLS Version         | Protocol version used by the server       |
-| Cert Subject        | Domain the certificate belongs to         |
-| Cert Issuer         | Certificate authority that issued it      |
-| Cert Expiry         | When the certificate expires              |
-| JA3 Hash            | Fingerprint of the client TLS stack       |
-| JA3S Hash           | Fingerprint of the server TLS stack       |
-| Threat Intelligence | Database match for known tools or malware |
-
-Indicators:
-
-| Indicator                    | Meaning                                |
-| ---------------------------- | -------------------------------------- |
-| ✅ TLS 1.3                    | Modern secure configuration            |
-| ⚠️ Certificate near expiry   | Certificate about to expire            |
-| 🚨 Threat intelligence match | Fingerprint matches known malware/tool |
-
----
-
-# 🧠 How JA3 Works
-
-Every TLS connection begins with a **ClientHello** message.
-
-Before encryption begins, the client announces:
-
-* supported TLS version
-* supported cipher suites
-* supported extensions
-* supported elliptic curves
-* EC point formats
-
-Different software produces **distinct combinations**.
-
-Examples:
-
-* Chrome
-* Firefox
-* Python requests
-* curl
-* Cobalt Strike
-
-JA3 concatenates these fields:
+The ClientHello fields are joined in order:
 
 ```
 SSLVersion,Ciphers,Extensions,EllipticCurves,EllipticCurvePointFormats
 769,47-53-5-10-49161,0-10-11,23-24,0
 ```
 
-The resulting string is hashed using **MD5** to create the JA3 fingerprint.
+that string is hashed with MD5, and the hex digest is the JA3 fingerprint.
 
-Example:
+GREASE values (RFC 8701) are removed before hashing. Browsers insert random GREASE values on every connection to stop the protocol ossifying, so leaving them in would produce a different hash each time and the fingerprint would be worthless.
 
-```
-a0e9f5d64349fb13191bc781f81f42e1
-```
+## Build
 
----
-
-# 🧪 GREASE Filtering
-
-Modern browsers insert random values called **GREASE values** to prevent protocol ossification.
-
-Defined in **RFC 8701**.
-
-Examples:
-
-```
-0x0A0A
-0x1A1A
-...
-0xFAFA
-```
-
-Because GREASE values change per connection, JA3 filters them out so fingerprints remain deterministic.
-
----
-
-# ⚡ Usage
-
-## Client Mode
-
-Connect to a TLS server and fingerprint your connection.
+Go 1.21 or later, no dependencies to download.
 
 ```bash
-./viperfin client google.com:443
+./build.sh
 ```
 
-Verbose mode:
+or cross-compile directly:
 
 ```bash
-./viperfin client example.com:443 --verbose
+GOOS=windows GOARCH=amd64 go build -o viperfin.exe .
+GOOS=linux   GOARCH=amd64 go build -o viperfin .
 ```
 
-JSON output:
+The binary moves between environments without a runtime, so building on Linux and running the capture on a Windows host works fine.
+
+## Tests
+
+19 test functions across the JA3 computation, handshake parser and signature database. Most are table driven, so the case count is higher than the function count.
 
 ```bash
-./viperfin client 10.0.0.1:8443 --json
+go test ./...
+go test -race ./...
 ```
 
-Skip certificate verification:
+CI runs the suite with the race detector and cross-compiles for Windows, Linux and macOS.
 
-```bash
-./viperfin client internal.corp:8443 --insecure
-```
+## Limits
 
-Shows:
+| Limit | Detail |
+|---|---|
+| Fingerprints drift | Browser and malware TLS stacks change between releases. A hash older than a year is a guess |
+| TLS 1.3 and ECH | The extension list is thinner and Encrypted Client Hello hides what used to be visible. Fingerprinting gets harder every year |
+| No live capture | It fingerprints the connection it makes or receives, not traffic already on the wire. Pair it with a pcap tool for that |
+| Self-signed server cert | The server mode certificate is generated at start. Clients must skip verification to connect |
+| Small database | 22 entries is a starting point, not threat intelligence |
 
-* JA3 fingerprint
-* JA3S fingerprint
-* TLS version and cipher suite
-* certificate details
-* threat intelligence matches
+## Author
 
----
-
-## Server Mode
-
-Listen for TLS connections and fingerprint every client.
-
-Start server:
-
-```bash
-./viperfin server
-```
-
-Custom port:
-
-```bash
-./viperfin server --port 8443
-```
-
-JSON output:
-
-```bash
-./viperfin server --port 4443 --json >> fingerprints.jsonl
-```
-
-Example clients:
-
-```bash
-curl -k https://localhost:4443
-openssl s_client -connect localhost:4443
-```
-
-Use cases:
-
-* security research
-* red team infrastructure
-* TLS fingerprint collection
-* network monitoring
-
----
-
-## Lookup Mode
-
-Query the local signature database.
-
-Lookup hash:
-
-```bash
-./viperfin lookup 6bea65232d17d4884c427918d6c3abf0
-```
-
-List all signatures:
-
-```bash
-./viperfin lookup --list
-```
-
-Filter by threat level:
-
-```bash
-./viperfin lookup --list --threat malicious
-```
-
----
-
-# 📚 Signature Database
-
-The embedded database contains fingerprints for:
-
-| Category      | Examples                        |
-| ------------- | ------------------------------- |
-| Browsers      | Chrome, Firefox, Safari         |
-| Tools         | curl, wget, Python requests     |
-| Pentest Tools | Metasploit, Nmap                |
-| Malware C2    | Cobalt Strike, Emotet, TrickBot |
-| Scanners      | Masscan, Shodan                 |
-
-File location:
-
-```
-db/ja3_signatures.json
-```
-
-Example entry:
-
-```json
-{
-  "hash": "your_md5_hash_here",
-  "label": "Descriptive name",
-  "category": "browser",
-  "threat_level": "benign",
-  "notes": "Context about this fingerprint"
-}
-```
-
-Community resources:
-
-* https://ja3er.com
-* https://github.com/salesforce/ja3
-
----
-
-# 🏗 Project Structure
-
-```
-viperfin/
-├── main.go
-├── go.mod
-├── build.sh
-├── cmd/
-│   ├── client.go
-│   ├── server.go
-│   └── lookup.go
-├── tls/
-│   ├── ja3.go
-│   ├── parser.go
-│   ├── capture.go
-│   └── server.go
-├── db/
-│   ├── signatures.go
-│   └── ja3_signatures.json
-└── report/
-    └── output.go
-```
-
----
-
-# 🛣 Roadmap
-
-Future improvements:
-
-* PCAP parsing mode
-* continuous fingerprint monitoring
-* JA3 database auto-sync
-* TLS proxy fingerprint collector
-* dashboard for fingerprint analytics
-
----
-
-=======
-# 📋 Changelog
-
-**v1.1.1** *(current — security & reliability fixes)*
-
-- **TLS 1.0 → 1.2 on server listener** — raised `MinVersion` from TLS 1.0 to TLS 1.2. Client mode retains TLS 1.0 intentionally to fingerprint legacy servers.
-- **Silent capture truncation fixed** — buffer raised from 4 KB to 16 KB (full TLS record maximum). `ReadTruncated()` added. `[!] Warning` printed when limit is hit — previously a truncated ClientHello would produce a wrong JA3 hash silently.
-- **`--insecure` now prints a visible warning** — `[!] Warning: TLS certificate verification is DISABLED` printed before connecting.
-- **`SortedCurveNames` dead code removed** — sorting curves alphabetically loses ClientHello field order which is semantically meaningful for fingerprinting.
-- **`.gitignore` hardened** — removed Kali dev environment metadata. Added `*.password`, `*.secret`, `*.key`, `*.pem`, `*.pfx`.
-
-**v1.1.0**
-
-- Fixed `signaturesJSON` → `JA3Signatures` undefined variable
-- Fixed nil pointer panic when `result.ClientJA3` was nil
-- Fixed `json.MarshalIndent` error silently dropped — now prints to stderr and exits
-- Fixed `--insecure` flag declared but dead — now wired through to `ConnectAndCapture`
-- Fixed `InsecureSkipVerify` hardcoded to `false` — now uses the `insecure` parameter
-- Fixed `portStr` typed as int — renamed to `port`
-- Fixed `ThreatInfo` not handled in stats switch
-- Added CI pipeline: `go vet` + tests with `-race` + cross-compile for 5 platforms
-
----
-
-# 📚 References
-
->>>>>>> 306d2bd (Update README - add badges and changelog)
-Salesforce JA3 paper
-https://engineering.salesforce.com/tls-fingerprinting-with-ja3-and-ja3s-247362855967
-
-RFC 8701 — GREASE
-https://www.rfc-editor.org/rfc/rfc8701
-
-TLS 1.3 specification
-https://www.rfc-editor.org/rfc/rfc8446
-
-Wireshark TLS dissector
-https://wiki.wireshark.org/TLS
-
----
-
-# 👨‍💻 Author
-
-**Egyan07**
-
----
-
-# 🐍 ViperFin
-
-**Protocol-Level TLS Fingerprinting**
+Egyan07, [github.com/Egyan07](https://github.com/Egyan07)
